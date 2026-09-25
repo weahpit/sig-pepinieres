@@ -1,0 +1,404 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Carte des pépinières{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+    <style>
+        .carte-wrap { display: grid; grid-template-columns: 340px 1fr; gap: 1rem; }
+        @media (max-width: 900px){ .carte-wrap{ grid-template-columns: 1fr; } }
+        #map { height: 74vh; min-height: 480px; border-radius: 14px; box-shadow: 0 10px 30px rgba(20,83,45,.18); }
+        .carte-panel { background:#fff; border-radius:14px; padding:1rem 1.1rem; box-shadow:0 8px 24px rgba(20,83,45,.10); }
+        .carte-panel h6 { color: var(--forest-700, #15803d); font-weight:700; text-transform:uppercase; letter-spacing:.04em; font-size:.78rem; margin-top:1rem; }
+        .carte-panel h6:first-child{ margin-top:0; }
+        .search-result { cursor:pointer; padding:.4rem .55rem; border-radius:8px; font-size:.86rem; }
+        .search-result:hover { background: var(--forest-100, #dcfce7); }
+        .stat-mini { display:flex; justify-content:space-between; font-size:.85rem; padding:.25rem 0; border-bottom:1px dashed #e5e7eb; }
+        .stat-mini b { color: var(--forest-700,#15803d); }
+        .leaflet-popup-content h6 { color:#15803d; margin:0 0 .3rem; }
+        .leaflet-popup-content { font-size:.85rem; }
+        /* Zone rapport d'impression : masquée à l'écran, visible à l'impression */
+        #rapport-print { display:none; }
+        @media print {
+            nav, footer, .carte-panel, .btn, .leaflet-control-container { display:none !important; }
+            .carte-wrap { display:block; }
+            #map { height: 420px !important; box-shadow:none; border:1px solid #ccc; }
+            #rapport-print { display:block !important; margin-top:1rem; }
+            #rapport-print table { width:100%; border-collapse:collapse; font-size:12px; }
+            #rapport-print th, #rapport-print td { border:1px solid #999; padding:4px 6px; text-align:left; }
+            #rapport-print h2 { color:#15803d; }
+        }
+    </style>
+{% endblock %}
+
+{% block body %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h4 mb-0"><i class="bi bi-geo-alt-fill text-success"></i> Carte des pépinières</h1>
+    <div>
+        <button id="btn-fit" class="btn btn-outline-success btn-sm"><i class="bi bi-arrows-fullscreen"></i> Vue globale</button>
+        <button id="btn-print" class="btn btn-success btn-sm"><i class="bi bi-printer"></i> Imprimer le rapport</button>
+    </div>
+</div>
+
+<div class="carte-wrap">
+    <div class="carte-panel">
+        <h6><i class="bi bi-funnel"></i> Filtres</h6>
+        <label class="form-label small mb-1">Région</label>
+        <select id="filtre-region" class="form-select form-select-sm mb-2"><option value="">Toutes les régions</option></select>
+        <label class="form-label small mb-1">État sanitaire</label>
+        <select id="filtre-etat" class="form-select form-select-sm mb-2"><option value="">Tous les états</option></select>
+        <div class="small text-muted mb-1"><b id="filtre-count">0</b> pépinière(s) affichée(s)</div>
+        <button id="btn-reset-filtre" class="btn btn-outline-secondary btn-sm w-100 mb-1"><i class="bi bi-x-circle"></i> Réinitialiser les filtres</button>
+
+        <h6><i class="bi bi-search"></i> Recherche</h6>
+        <input type="text" id="search-input" class="form-control form-control-sm mb-2" placeholder="Nom, code, région, village…">
+        <div id="search-results" style="max-height:170px; overflow:auto;"></div>
+
+        <h6><i class="bi bi-bullseye"></i> Analyse spatiale</h6>
+        <label class="form-label small mb-1">Rayon d'analyse (km)</label>
+        <input type="range" id="rayon" class="form-range" min="1" max="200" value="25">
+        <div class="small text-muted mb-2">Rayon : <b id="rayon-val">25</b> km — <i>cliquez sur la carte pour poser le centre d'analyse</i></div>
+        <div class="d-grid gap-1 mb-2">
+            <button id="btn-hull" class="btn btn-outline-success btn-sm"><i class="bi bi-bounding-box"></i> Emprise (enveloppe convexe)</button>
+            <button id="btn-clear" class="btn btn-outline-secondary btn-sm"><i class="bi bi-eraser"></i> Effacer l'analyse</button>
+        </div>
+        <div id="analyse-stats"></div>
+
+        <h6><i class="bi bi-layers"></i> Couches</h6>
+        <div class="form-check form-check-sm">
+            <input class="form-check-input" type="checkbox" id="toggle-cluster" checked>
+            <label class="form-check-label small" for="toggle-cluster">Regrouper les points (cluster)</label>
+        </div>
+
+        <h6><i class="bi bi-bar-chart"></i> Synthèse</h6>
+        <div id="synthese"></div>
+    </div>
+
+    <div>
+        <div id="map"></div>
+    </div>
+</div>
+
+<div id="rapport-print"></div>
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
+    <script>
+    (function () {
+        'use strict';
+        const GEOJSON_URL = '{{ path('carte_pepinieres_geojson') }}';
+
+        // ---- Fonds de carte ----
+        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19, attribution: '&copy; OpenStreetMap'
+        });
+        const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19, attribution: 'Tiles &copy; Esri'
+        });
+        const topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+            maxZoom: 17, attribution: '&copy; OpenTopoMap'
+        });
+
+        const map = L.map('map', { center: [7.54, -5.55], zoom: 6, layers: [osm] });
+        L.control.layers(
+            { 'Plan (OSM)': osm, 'Satellite (Esri)': sat, 'Relief (Topo)': topo },
+            {}, { position: 'topright' }
+        ).addTo(map);
+        L.control.scale({ imperial: false }).addTo(map);
+
+        // Légende état sanitaire
+        const legende = L.control({ position: 'bottomright' });
+        legende.onAdd = function () {
+            const div = L.DomUtil.create('div');
+            div.style.cssText = 'background:#fff;padding:8px 10px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.2);font-size:12px;line-height:1.6';
+            let html = '<b>État sanitaire</b><br>';
+            const items = [['Sain', '#16a34a'], ['Faible', '#eab308'], ['Attaque', '#f59e0b'], ['Malade', '#dc2626'], ['Mort', '#6b7280']];
+            items.forEach(function (it) {
+                html += '<span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:' + it[1] + ';margin-right:5px"></span>' + it[0] + '<br>';
+            });
+            div.innerHTML = html;
+            return div;
+        };
+        legende.addTo(map);
+
+        // Couleurs par état sanitaire
+        const ETAT_COULEURS = {
+            'Sain': '#16a34a', 'Attaque': '#f59e0b', 'Malade': '#dc2626',
+            'Faible': '#eab308', 'Mort': '#6b7280'
+        };
+        function couleurEtat(etat) { return ETAT_COULEURS[etat] || '#16a34a'; }
+
+        // Icône colorée personnalisée (couleur selon l'état sanitaire)
+        function markerIcon(color) {
+            color = color || '#16a34a';
+            return L.divIcon({
+                className: '',
+                html: '<div style="background:' + color + ';width:18px;height:18px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,.4)"></div>',
+                iconSize: [18, 18], iconAnchor: [9, 18], popupAnchor: [0, -16]
+            });
+        }
+
+        let FEATURES = [];       // toutes les features GeoJSON
+        let VISIBLE = [];        // features après application des filtres
+        let markersById = {};    // id -> marker
+        const clusterLayer = L.markerClusterGroup({ maxClusterRadius: 45 });
+        const plainLayer = L.layerGroup();
+        let analyseLayer = L.layerGroup().addTo(map);
+        let centreAnalyse = null; // [lat, lon]
+
+        function fmt(n) { return (n === null || n === undefined) ? '–' : Number(n).toLocaleString('fr-FR'); }
+
+        function popupHtml(p) {
+            return '<h6>' + (p.nom || 'Pépinière') + '</h6>'
+                + '<div><b>Code :</b> ' + (p.code || '–') + '</div>'
+                + '<div><b>Région :</b> ' + (p.region || '–') + '</div>'
+                + '<div><b>Village :</b> ' + (p.village || '–') + '</div>'
+                + '<div><b>Superficie :</b> ' + fmt(p.superficieM2) + ' m²</div>'
+                + '<div><b>Capacité/an :</b> ' + fmt(p.capaciteAn) + '</div>'
+                + '<div><b>Lots :</b> ' + fmt(p.nbLots) + ' — <b>Plants levés :</b> ' + fmt(p.plantsLeves) + '</div>'
+                + '<div><b>État sanitaire :</b> <span style="color:' + couleurEtat(p.etatSanitaire) + ';font-weight:600">' + (p.etatSanitaire || 'Non renseigné') + '</span></div>'
+                + '<div class="mt-1"><a href="' + p.urlFiche + '">Ouvrir la fiche &raquo;</a></div>';
+        }
+
+        function buildMarkers() {
+            clusterLayer.clearLayers(); plainLayer.clearLayers(); markersById = {};
+            VISIBLE.forEach(function (f) {
+                const c = f.geometry.coordinates; // [lon, lat]
+                const m = L.marker([c[1], c[0]], { icon: markerIcon(couleurEtat(f.properties.etatSanitaire)) }).bindPopup(popupHtml(f.properties));
+                markersById[f.properties.id] = m;
+                clusterLayer.addLayer(m);
+                plainLayer.addLayer(m);
+            });
+        }
+
+        // ---- Chargement des données ----
+        fetch(GEOJSON_URL).then(function (r) { return r.json(); }).then(function (data) {
+            FEATURES = data.features || [];
+            VISIBLE = FEATURES.slice();
+            peuplerFiltres();
+            buildMarkers();
+            map.addLayer(clusterLayer);
+            renderSearch(VISIBLE);
+            renderSynthese(VISIBLE);
+            majCompteur();
+            fitAll();
+        }).catch(function () {
+            document.getElementById('synthese').innerHTML =
+                '<div class="text-danger small">Impossible de charger la couche des pépinières.</div>';
+        });
+
+        // ---- Filtres dynamiques (région / état sanitaire) ----
+        const selRegion = document.getElementById('filtre-region');
+        const selEtat = document.getElementById('filtre-etat');
+        function peuplerFiltres() {
+            const regions = {}, etats = {};
+            FEATURES.forEach(function (f) {
+                if (f.properties.region) regions[f.properties.region] = true;
+                if (f.properties.etatSanitaire) etats[f.properties.etatSanitaire] = true;
+            });
+            Object.keys(regions).sort().forEach(function (r) {
+                const o = document.createElement('option'); o.value = r; o.textContent = r; selRegion.appendChild(o);
+            });
+            // États dans un ordre logique
+            ['Sain', 'Faible', 'Attaque', 'Malade', 'Mort'].forEach(function (e) {
+                if (etats[e]) { const o = document.createElement('option'); o.value = e; o.textContent = e; selEtat.appendChild(o); }
+            });
+        }
+        function applyFilters() {
+            const r = selRegion.value, e = selEtat.value;
+            VISIBLE = FEATURES.filter(function (f) {
+                if (r && f.properties.region !== r) return false;
+                if (e && f.properties.etatSanitaire !== e) return false;
+                return true;
+            });
+            buildMarkers();
+            // réaffiche la couche active (cluster ou points simples)
+            if (document.getElementById('toggle-cluster').checked) { map.removeLayer(plainLayer); map.addLayer(clusterLayer); }
+            else { map.removeLayer(clusterLayer); map.addLayer(plainLayer); }
+            // réapplique la recherche courante sur l'ensemble filtré
+            filtrerRecherche();
+            renderSynthese(VISIBLE);
+            majCompteur();
+        }
+        function majCompteur() { document.getElementById('filtre-count').textContent = VISIBLE.length; }
+        selRegion.addEventListener('change', applyFilters);
+        selEtat.addEventListener('change', applyFilters);
+        document.getElementById('btn-reset-filtre').addEventListener('click', function () {
+            selRegion.value = ''; selEtat.value = ''; searchInput.value = ''; applyFilters();
+        });
+
+        function fitAll() {
+            const src = VISIBLE.length ? VISIBLE : FEATURES;
+            if (!src.length) return;
+            const b = L.latLngBounds(src.map(function (f) {
+                return [f.geometry.coordinates[1], f.geometry.coordinates[0]];
+            }));
+            map.fitBounds(b.pad(0.2));
+        }
+        document.getElementById('btn-fit').addEventListener('click', fitAll);
+
+        // ---- Bascule cluster / points simples ----
+        document.getElementById('toggle-cluster').addEventListener('change', function (e) {
+            if (e.target.checked) { map.removeLayer(plainLayer); map.addLayer(clusterLayer); }
+            else { map.removeLayer(clusterLayer); map.addLayer(plainLayer); }
+        });
+
+        // ---- Recherche ----
+        const searchInput = document.getElementById('search-input');
+        const searchResults = document.getElementById('search-results');
+        function renderSearch(list) {
+            if (!list.length) { searchResults.innerHTML = '<div class="text-muted small">Aucun résultat.</div>'; return; }
+            searchResults.innerHTML = list.slice(0, 50).map(function (f) {
+                const p = f.properties;
+                return '<div class="search-result" data-id="' + p.id + '">'
+                    + '<b>' + (p.nom || '–') + '</b> <span class="text-muted">(' + (p.code || '–') + ')</span>'
+                    + '<br><span class="text-muted small">' + (p.region || '') + ' · ' + (p.village || '') + '</span></div>';
+            }).join('');
+            [].forEach.call(searchResults.querySelectorAll('.search-result'), function (el) {
+                el.addEventListener('click', function () {
+                    const m = markersById[el.getAttribute('data-id')];
+                    if (m) { map.setView(m.getLatLng(), 13); m.openPopup(); }
+                });
+            });
+        }
+        function filtrerRecherche() {
+            const q = searchInput.value.trim().toLowerCase();
+            if (!q) { renderSearch(VISIBLE); return; }
+            renderSearch(VISIBLE.filter(function (f) {
+                const p = f.properties;
+                return [p.nom, p.code, p.region, p.departement, p.village, p.sousPrefecture]
+                    .some(function (v) { return v && String(v).toLowerCase().indexOf(q) !== -1; });
+            }));
+        }
+        searchInput.addEventListener('input', filtrerRecherche);
+
+        // ---- Analyse spatiale ----
+        const rayonInput = document.getElementById('rayon');
+        const rayonVal = document.getElementById('rayon-val');
+        rayonInput.addEventListener('input', function () {
+            rayonVal.textContent = rayonInput.value;
+            if (centreAnalyse) runBuffer();
+        });
+        map.on('click', function (e) {
+            centreAnalyse = [e.latlng.lat, e.latlng.lng];
+            runBuffer();
+        });
+
+        function clearAnalyse() { analyseLayer.clearLayers(); }
+
+        function runBuffer() {
+            clearAnalyse();
+            if (!centreAnalyse) return;
+            const rayonKm = parseFloat(rayonInput.value);
+            const centre = turf.point([centreAnalyse[1], centreAnalyse[0]]);
+            const cercle = turf.buffer(centre, rayonKm, { units: 'kilometers' });
+            L.geoJSON(cercle, { style: { color: '#15803d', weight: 2, fillColor: '#22c55e', fillOpacity: 0.12 } }).addTo(analyseLayer);
+            L.circleMarker(centreAnalyse, { radius: 5, color: '#15803d', fillColor: '#15803d', fillOpacity: 1 }).addTo(analyseLayer);
+
+            // Pépinières à l'intérieur du rayon
+            let dedans = 0, capacite = 0, plants = 0, superficie = 0;
+            const noms = [];
+            VISIBLE.forEach(function (f) {
+                const pt = turf.point(f.geometry.coordinates);
+                if (turf.booleanPointInPolygon(pt, cercle)) {
+                    dedans++;
+                    capacite += f.properties.capaciteAn || 0;
+                    plants += f.properties.plantsLeves || 0;
+                    superficie += f.properties.superficieM2 || 0;
+                    noms.push(f.properties.nom);
+                    const m = markersById[f.properties.id];
+                    if (m) L.circleMarker(m.getLatLng(), { radius: 9, color: '#f59e0b', weight: 2, fill: false }).addTo(analyseLayer);
+                }
+            });
+            const airekm2 = Math.PI * rayonKm * rayonKm;
+            document.getElementById('analyse-stats').innerHTML =
+                '<div class="stat-mini"><span>Pépinières dans le rayon</span><b>' + dedans + '</b></div>'
+                + '<div class="stat-mini"><span>Densité</span><b>' + (dedans / airekm2).toFixed(3) + ' /km²</b></div>'
+                + '<div class="stat-mini"><span>Capacité cumulée/an</span><b>' + fmt(capacite) + '</b></div>'
+                + '<div class="stat-mini"><span>Plants levés cumulés</span><b>' + fmt(plants) + '</b></div>'
+                + '<div class="stat-mini"><span>Superficie cumulée</span><b>' + fmt(Math.round(superficie)) + ' m²</b></div>';
+            lastAnalyse = { type: 'rayon', rayonKm: rayonKm, dedans: dedans, capacite: capacite, plants: plants, superficie: superficie, noms: noms };
+        }
+
+        // Enveloppe convexe (emprise) de toutes les pépinières
+        document.getElementById('btn-hull').addEventListener('click', function () {
+            if (VISIBLE.length < 3) { alert('Au moins 3 pépinières géoréférencées (après filtrage) sont nécessaires.'); return; }
+            clearAnalyse();
+            const fc = turf.featureCollection(VISIBLE.map(function (f) { return turf.point(f.geometry.coordinates); }));
+            const hull = turf.convex(fc);
+            if (!hull) return;
+            L.geoJSON(hull, { style: { color: '#166534', weight: 2, dashArray: '6 4', fillColor: '#4ade80', fillOpacity: 0.10 } }).addTo(analyseLayer);
+            const aireKm2 = turf.area(hull) / 1e6;
+            document.getElementById('analyse-stats').innerHTML =
+                '<div class="stat-mini"><span>Emprise (enveloppe convexe)</span><b>' + VISIBLE.length + ' sites</b></div>'
+                + '<div class="stat-mini"><span>Surface de l\'emprise</span><b>' + fmt(Math.round(aireKm2)) + ' km²</b></div>'
+                + '<div class="stat-mini"><span>Densité moyenne</span><b>' + (VISIBLE.length / aireKm2).toFixed(4) + ' /km²</b></div>';
+            lastAnalyse = { type: 'emprise', sites: VISIBLE.length, aireKm2: Math.round(aireKm2) };
+        });
+        document.getElementById('btn-clear').addEventListener('click', function () {
+            clearAnalyse(); centreAnalyse = null; lastAnalyse = null;
+            document.getElementById('analyse-stats').innerHTML = '';
+        });
+
+        // ---- Synthèse globale ----
+        function renderSynthese(list) {
+            let cap = 0, plants = 0, sup = 0; const regions = {};
+            list.forEach(function (f) {
+                const p = f.properties;
+                cap += p.capaciteAn || 0; plants += p.plantsLeves || 0; sup += p.superficieM2 || 0;
+                if (p.region) regions[p.region] = (regions[p.region] || 0) + 1;
+            });
+            document.getElementById('synthese').innerHTML =
+                '<div class="stat-mini"><span>Pépinières géolocalisées</span><b>' + list.length + '</b></div>'
+                + '<div class="stat-mini"><span>Régions couvertes</span><b>' + Object.keys(regions).length + '</b></div>'
+                + '<div class="stat-mini"><span>Capacité totale/an</span><b>' + fmt(cap) + '</b></div>'
+                + '<div class="stat-mini"><span>Plants levés</span><b>' + fmt(plants) + '</b></div>'
+                + '<div class="stat-mini"><span>Superficie totale</span><b>' + fmt(Math.round(sup)) + ' m²</b></div>';
+        }
+
+        // ---- Rapport imprimable ----
+        let lastAnalyse = null;
+        document.getElementById('btn-print').addEventListener('click', function () {
+            const now = new Date().toLocaleString('fr-FR');
+            let rows = VISIBLE.map(function (f) {
+                const p = f.properties;
+                return '<tr><td>' + (p.code || '') + '</td><td>' + (p.nom || '') + '</td><td>' + (p.region || '')
+                    + '</td><td>' + (p.village || '') + '</td><td>' + (p.etatSanitaire || 'Non renseigné')
+                    + '</td><td style="text-align:right">' + fmt(p.superficieM2)
+                    + '</td><td style="text-align:right">' + fmt(p.capaciteAn) + '</td><td style="text-align:right">'
+                    + fmt(p.nbLots) + '</td></tr>';
+            }).join('');
+            const fRegion = selRegion.value || 'Toutes';
+            const fEtat = selEtat.value || 'Tous';
+            let analyseHtml = '';
+            if (lastAnalyse && lastAnalyse.type === 'rayon') {
+                analyseHtml = '<h3>Analyse spatiale (rayon ' + lastAnalyse.rayonKm + ' km)</h3><ul>'
+                    + '<li>Pépinières dans le rayon : <b>' + lastAnalyse.dedans + '</b></li>'
+                    + '<li>Capacité cumulée/an : <b>' + fmt(lastAnalyse.capacite) + '</b></li>'
+                    + '<li>Plants levés cumulés : <b>' + fmt(lastAnalyse.plants) + '</b></li></ul>';
+            } else if (lastAnalyse && lastAnalyse.type === 'emprise') {
+                analyseHtml = '<h3>Analyse spatiale (emprise)</h3><ul>'
+                    + '<li>Sites : <b>' + lastAnalyse.sites + '</b></li>'
+                    + '<li>Surface de l\'emprise : <b>' + fmt(lastAnalyse.aireKm2) + ' km²</b></li></ul>';
+            }
+            document.getElementById('rapport-print').innerHTML =
+                '<h2>Rapport cartographique — Pépinières forestières</h2>'
+                + '<div>Édité le ' + now + ' — ' + VISIBLE.length + ' pépinière(s) affichée(s)</div>'
+                + '<div>Filtres actifs — Région : <b>' + fRegion + '</b> · État sanitaire : <b>' + fEtat + '</b></div>'
+                + analyseHtml
+                + '<h3>Liste des pépinières</h3>'
+                + '<table><thead><tr><th>Code</th><th>Nom</th><th>Région</th><th>Village</th><th>État sanitaire</th>'
+                + '<th>Superficie (m²)</th><th>Capacité/an</th><th>Lots</th></tr></thead><tbody>'
+                + rows + '</tbody></table>';
+            window.print();
+        });
+    })();
+    </script>
+{% endblock %}

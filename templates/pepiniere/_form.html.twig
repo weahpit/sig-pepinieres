@@ -1,0 +1,21 @@
+{{ form_start(form) }}
+<div class="row g-3">
+    <div class="col-md-4">{{ form_row(form.codePepiniere) }}</div>
+    <div class="col-md-8">{{ form_row(form.nomPepiniere) }}</div>
+    <div class="col-md-4">{{ form_row(form.region) }}</div>
+    <div class="col-md-4">{{ form_row(form.departement) }}</div>
+    <div class="col-md-4">{{ form_row(form.sousPrefecture) }}</div>
+    <div class="col-md-4">{{ form_row(form.village) }}</div>
+    <div class="col-md-4">{{ form_row(form.latitude) }}</div>
+    <div class="col-md-4">{{ form_row(form.longitude) }}</div>
+    <div class="col-md-4">{{ form_row(form.superficieM2) }}</div>
+    <div class="col-md-4">{{ form_row(form.capaciteProductionAn) }}</div>
+    <div class="col-md-4">{{ form_row(form.dateCreation) }}</div>
+    <div class="col-md-8">{{ form_row(form.organismeGestionnaire) }}</div>
+    <div class="col-md-4">{{ form_row(form.responsable) }}</div>
+</div>
+<div class="mt-3">
+    <button class="btn btn-success"><i class="bi bi-check-lg"></i> Enregistrer</button>
+    <a href="{{ path('pepiniere_index') }}" class="btn btn-outline-secondary">Annuler</a>
+</div>
+{{ form_end(form) }}

@@ -1,0 +1,91 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Tableau de bord{% endblock %}
+
+{% block body %}
+<h1 class="h3 mb-4 text-forest"><i class="bi bi-speedometer2"></i> Tableau de bord</h1>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card card-metric shadow-sm">
+            <div class="card-body">
+                <div class="text-muted small">Pépinières</div>
+                <div class="h4 mb-0">{{ nbPepinieres }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-metric shadow-sm">
+            <div class="card-body">
+                <div class="text-muted small">Lots en production</div>
+                <div class="h4 mb-0">{{ nbLots }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-metric shadow-sm">
+            <div class="card-body">
+                <div class="text-muted small">Plants levés</div>
+                <div class="h4 mb-0">{{ totalLeves }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-metric shadow-sm">
+            <div class="card-body">
+                <div class="text-muted small">Taux de germination global</div>
+                <div class="h4 mb-0">{{ tauxGerminationGlobal }} %</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card shadow-sm"><div class="card-body">
+            <div class="text-muted small">Graines semées</div>
+            <div class="h5 mb-0">{{ totalGraines }}</div>
+        </div></div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm"><div class="card-body">
+            <div class="text-muted small">Plants perdus</div>
+            <div class="h5 mb-0 text-danger">{{ totalPerdus }}</div>
+        </div></div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm"><div class="card-body">
+            <div class="text-muted small">Plants distribués</div>
+            <div class="h5 mb-0">{{ totalDistribues }}</div>
+        </div></div>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white fw-bold">Indicateurs par lot</div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Lot</th><th>Espèce</th><th>Germination</th>
+                    <th>Survie</th><th>Mortalité</th><th>Perdus</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for row in indicateurs %}
+                <tr>
+                    <td>{{ row.lot.numeroLot }}</td>
+                    <td>{{ row.lot.espece ? row.lot.espece.nomCommun : '—' }}</td>
+                    <td>{{ row.lot.tauxGermination ?? '—' }} %</td>
+                    <td>{{ row.tauxSurvie ?? '—' }} %</td>
+                    <td>{{ row.tauxMortalite ?? '—' }} %</td>
+                    <td>{{ row.perdus }}</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="6" class="text-center text-muted py-3">Aucune donnée</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

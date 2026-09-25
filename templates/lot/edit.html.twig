@@ -1,0 +1,8 @@
+{% extends 'base.html.twig' %}
+{% block title %}Modifier le lot{% endblock %}
+{% block body %}
+<h1 class="h3 text-forest mb-4"><i class="bi bi-pencil-square"></i> Modifier : {{ lot.numeroLot }}</h1>
+<div class="card shadow-sm"><div class="card-body">
+    {{ include('lot/_form.html.twig') }}
+</div></div>
+{% endblock %}

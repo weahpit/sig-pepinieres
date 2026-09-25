@@ -1,0 +1,8 @@
+{% extends 'base.html.twig' %}
+{% block title %}Nouvelle mesure de croissance{% endblock %}
+{% block body %}
+<h1 class="h3 text-forest mb-4"><i class="bi bi-plus-circle"></i> Nouvelle mesure de croissance</h1>
+<div class="card shadow-sm"><div class="card-body">
+    {{ include('suivi_croissance/_form.html.twig') }}
+</div></div>
+{% endblock %}

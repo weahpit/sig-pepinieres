@@ -1,0 +1,73 @@
+{#{% extends 'base.html.twig' %}
+
+{% block title %}Log in!{% endblock %}
+
+{% block body %}
+<form method="post">
+    {% if error %}
+        <div class="alert alert-danger">{{ error.messageKey|trans(error.messageData, 'security') }}</div>
+    {% endif %}
+
+    {% if app.user %}
+        <div class="mb-3">
+            You are logged in as {{ app.user.userIdentifier }}, <a href="{{ logout_path() }}">Logout</a>
+        </div>
+    {% endif %}
+
+    <h1 class="h3 mb-3 font-weight-normal">Please sign in</h1>
+    <label for="inputEmail">Email</label>
+    <input type="email" value="{{ last_username }}" name="email" id="inputEmail" class="form-control" autocomplete="email" required autofocus>
+    <label for="inputPassword">Password</label>
+    <input type="password" name="password" id="inputPassword" class="form-control" autocomplete="current-password" required>
+    <input type="hidden" name="_csrf_token" data-controller="csrf-protection" value="{{ csrf_token('authenticate') }}">
+
+    <button class="btn btn-lg btn-primary" type="submit">
+        Sign in
+    </button>
+</form>
+{% endblock %}#}
+
+{% extends 'loginBase.html.twig' %}
+
+{% block title %}Connexion — Gestion des pépinières{% endblock %}
+
+{% block login_body %}
+    <div class="login-wrapper">
+        <div class="login-card">
+            <div class="login-brand">
+                <h3 class="login-logo"><img src="{{ asset('images/feuille.png') }}" alt="" height="40px" style="margin-right: 10px;">SIG-Pépinières</h3>
+                <p class="login-tagline" style="color: #693c28">Gestion des pépinières</p>
+            </div>
+
+
+            <form method="post" class="login-form">
+                <div class="form-group">
+                    <label for="username">Identifiant</label>
+                    <input type="text" id="inputEmail" name="email" value="{{ last_username }}" class="input" placeholder="Nom d'utilisateur" autocomplete="username" required autofocus>
+                </div>
+                <div class="form-group">
+                    <label for="password">Mot de passe</label>
+                    <input type="password" id="inputPassword" name="password" class="input" placeholder="Mot de passe" autocomplete="current-password" required>
+                </div>
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
+                    {#<label>
+                        <input type="checkbox" name="_remember_me"> Remember me
+                    </label>#}
+                <button type="submit" class="btn btn-primary btn-block">Se connecter</button>
+            </form>
+
+            <div class="login-footer" style="background: linear-gradient(var(--forest-100), var(--forest-200));color: #474646;border-radius: 25px;font-weight: bold;">
+                <p>Direction du Reboisement, MINEF - Côte d'Ivoire</p>
+            </div>
+        </div>
+    </div>
+    <script>
+        getError()
+        function getError(){
+            {% if error %}
+                showToast("Identifiants incorrects", {title : "SIG-Pépinières", type: "error"})
+            {% endif %}
+        }
+    </script>
+{% endblock %}
+

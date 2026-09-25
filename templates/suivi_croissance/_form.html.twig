@@ -1,0 +1,16 @@
+{{ form_start(form) }}
+<div class="row g-3">
+    <div class="col-md-4">{{ form_row(form.lot) }}</div>
+    <div class="col-md-4">{{ form_row(form.dateMesure) }}</div>
+    <div class="col-md-4">{{ form_row(form.etatSanitaire) }}</div>
+    <div class="col-md-4">{{ form_row(form.hauteurMoyCm) }}</div>
+    <div class="col-md-4">{{ form_row(form.diametreColletMm) }}</div>
+    <div class="col-md-4">{{ form_row(form.nbFeuilles) }}</div>
+    <div class="col-md-8">{{ form_row(form.observations) }}</div>
+    <div class="col-md-4">{{ form_row(form.agent) }}</div>
+</div>
+<div class="mt-3">
+    <button class="btn btn-success"><i class="bi bi-check-lg"></i> Enregistrer</button>
+    <a href="{{ path('croissance_index') }}" class="btn btn-outline-secondary">Annuler</a>
+</div>
+{{ form_end(form) }}
