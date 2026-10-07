@@ -88,8 +88,13 @@ class Lot
     public function computeTauxGermination(): void
     {
         if ($this->nbGrainesSemees && $this->nbGrainesSemees > 0 && $this->nbPlantsLeves !== null) {
+            // Le taux peut dépasser 100 % si les données de terrain sont
+            // incohérentes (plus de plants vivants que de plants mis en
+            // production). On borne à 999.99 pour rester dans les limites de
+            // la colonne decimal(5,2) et éviter une erreur SQL « out of range ».
+            $taux = min($this->nbPlantsLeves * 100 / $this->nbGrainesSemees, 999.99);
             $this->tauxGermination = number_format(
-                $this->nbPlantsLeves * 100 / $this->nbGrainesSemees,
+                $taux,
                 2,
                 '.',
                 ''

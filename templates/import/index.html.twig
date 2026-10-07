@@ -1,0 +1,146 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Import KoboToolbox{% endblock %}
+
+{% block body %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 text-forest mb-0"><i class="bi bi-cloud-arrow-up"></i> Importer des données Kobo</h1>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h2 class="h6 text-muted mb-3">Fichier Excel exporté depuis KoboToolbox</h2>
+
+                <form method="post" enctype="multipart/form-data" action="{{ path('import_kobo') }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('import_kobo') }}">
+
+                    <div class="mb-3">
+                        <label for="fichier" class="form-label fw-semibold">Fichier « Suivi de la production des plants » (.xlsx)</label>
+                        <input type="file" id="fichier" name="fichier" class="form-control" accept=".xlsx,.xls" required>
+                        <div class="form-text">Sélectionnez l'export brut de Kobo, sans le modifier.</div>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="dry_run" name="dry_run" value="1">
+                        <label class="form-check-label" for="dry_run">
+                            Mode simulation (analyse le fichier sans rien enregistrer)
+                        </label>
+                    </div>
+
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-database-add"></i> Importer
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h2 class="h6 text-forest mb-3"><i class="bi bi-info-circle"></i> Comment ça marche</h2>
+                <ul class="small text-muted mb-0 ps-3">
+                    <li class="mb-2">Chaque soumission Kobo crée ou met à jour une <strong>pépinière</strong> (identifiée par son code de site).</li>
+                    <li class="mb-2">Chaque espèce renseignée devient un <strong>lot</strong> rattaché à la pépinière.</li>
+                    <li class="mb-2">L'état phytosanitaire, les plants morts et les problèmes observés alimentent les <strong>suivis</strong> (croissance, pertes, phytosanitaire).</li>
+                    <li class="mb-2">Un réimport du même fichier met à jour les lots existants sans créer de doublons.</li>
+                    <li>Utilisez d'abord la <strong>simulation</strong> pour vérifier les totaux avant l'import réel.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if resume is not null %}
+    <div class="card shadow-sm mt-4">
+        <div class="card-body">
+            <h2 class="h6 text-forest mb-3">
+                <i class="bi bi-clipboard-check"></i>
+                Résultat {{ resume.dryRun ? '(simulation)' : '' }}
+            </h2>
+            <div class="row text-center g-3">
+                <div class="col">
+                    <div class="display-6 text-success">{{ resume.pepinieres }}</div>
+                    <div class="small text-muted">Pépinière(s)</div>
+                </div>
+                <div class="col">
+                    <div class="display-6 text-success">{{ resume.lots }}</div>
+                    <div class="small text-muted">Lot(s) / espèce(s)</div>
+                </div>
+                <div class="col">
+                    <div class="display-6 text-danger">{{ resume.bloques }}</div>
+                    <div class="small text-muted">Bloqué(s)</div>
+                </div>
+                <div class="col">
+                    <div class="display-6 text-primary">{{ resume.corriges }}</div>
+                    <div class="small text-muted">Corrigé(s)</div>
+                </div>
+                <div class="col">
+                    <div class="display-6 text-warning">{{ resume.avertissements }}</div>
+                    <div class="small text-muted">Avertissement(s)</div>
+                </div>
+            </div>
+            {% if resume.dryRun %}
+                <p class="small text-muted text-center mt-3 mb-0">
+                    Aucune donnée n'a été écrite. Décochez « Mode simulation » puis relancez pour enregistrer.
+                </p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if resume.anomalies is not empty %}
+        <div class="card shadow-sm mt-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="h6 text-forest mb-0">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        Rapport des lignes Kobo en erreur ({{ resume.anomalies|length }})
+                    </h2>
+                    <a href="{{ path('import_kobo_rapport') }}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-download"></i> Télécharger (CSV)
+                    </a>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Ligne</th>
+                                <th>Section</th>
+                                <th>Identifiant</th>
+                                <th>Sévérité</th>
+                                <th>Message</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for a in resume.anomalies %}
+                            <tr>
+                                <td><span class="badge bg-secondary">#{{ a.ligne }}</span></td>
+                                <td>{{ a.section }}</td>
+                                <td>{{ a.identifiant }}</td>
+                                <td>
+                                    {% if a.severite == 'bloquant' %}
+                                        <span class="badge bg-danger">Bloqué</span>
+                                    {% elseif a.severite == 'corrige' %}
+                                        <span class="badge bg-primary">Corrigé</span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark">Avertissement</span>
+                                    {% endif %}
+                                </td>
+                                <td class="small">{{ a.message }}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <p class="small text-muted mt-3 mb-0">
+                    <strong>Bloqué</strong> : ligne ignorée (doublon ou donnée manquante).
+                    <strong>Corrigé</strong> : valeur nettoyée automatiquement.
+                    <strong>Avertissement</strong> : donnée conservée mais à vérifier.
+                </p>
+            </div>
+        </div>
+    {% endif %}
+{% endif %}
+{% endblock %}

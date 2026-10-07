@@ -8,6 +8,7 @@ use App\Entity\Lot;
 use App\Entity\Pepiniere;
 use App\Entity\Planche;
 use App\Entity\SuiviPerte;
+use App\Entity\User;
 use App\Enum\CausePerte;
 use Doctrine\Bundle\FixturesBundle\Fixture;
 use Doctrine\Persistence\ObjectManager;
@@ -16,6 +17,14 @@ class AppFixtures extends Fixture
 {
     public function load(ObjectManager $manager): void
     {
+        $user = (new User())
+            ->setNom('LOUKOU')
+            ->setPrenoms('Kouakou Maxime')
+            ->setRoles(["ROLE_ADMIN","ROLE_USER"])
+            ->setEmail('lmaxkof@gmail.com')
+            ->setPassword(password_hash('123456789', PASSWORD_BCRYPT));
+            $manager->persist($user);
+
         $agent = (new Agent())
             ->setNom('Kouassi Yao')
             ->setFonction('Technicien pepinieriste')

@@ -72,6 +72,20 @@
             <input class="form-check-input" type="checkbox" id="toggle-cluster" checked>
             <label class="form-check-label small" for="toggle-cluster">Regrouper les points (cluster)</label>
         </div>
+        <div class="form-check form-check-sm">
+            <input class="form-check-input" type="checkbox" id="toggle-parcelles" checked>
+            <label class="form-check-label small" for="toggle-parcelles">Afficher les parcelles</label>
+        </div>
+        <div class="form-check form-check-sm">
+            <input class="form-check-input" type="checkbox" id="toggle-heat">
+            <label class="form-check-label small" for="toggle-heat">Points chauds (heatmap)</label>
+        </div>
+        <label class="form-label small mb-1 mt-2">Pondération de la chaleur</label>
+        <select id="heat-poids" class="form-select form-select-sm">
+            <option value="plantsLeves">Nombre de plants levés</option>
+            <option value="nbLots">Nombre de lots</option>
+            <option value="uniforme">Densité (uniforme)</option>
+        </select>
 
         <h6><i class="bi bi-bar-chart"></i> Synthèse</h6>
         <div id="synthese"></div>
@@ -90,6 +104,7 @@
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
     <script>
     (function () {
         'use strict';
@@ -150,6 +165,8 @@
         let markersById = {};    // id -> marker
         const clusterLayer = L.markerClusterGroup({ maxClusterRadius: 45 });
         const plainLayer = L.layerGroup();
+        const parcelLayer = L.layerGroup();   // polygones des parcelles
+        let heatLayer = null;                 // couche heatmap (leaflet.heat)
         let analyseLayer = L.layerGroup().addTo(map);
         let centreAnalyse = null; // [lat, lon]
 
@@ -178,13 +195,62 @@
             });
         }
 
+        // ---- Parcelles (polygones de délimitation Kobo) ----
+        function buildParcels() {
+            parcelLayer.clearLayers();
+            VISIBLE.forEach(function (f) {
+                const contour = f.properties.contour; // ring [lon, lat]
+                if (!contour || contour.length < 3) return;
+                const latlngs = contour.map(function (pt) { return [pt[1], pt[0]]; });
+                const col = couleurEtat(f.properties.etatSanitaire);
+                L.polygon(latlngs, {
+                    color: col, weight: 2, opacity: .9,
+                    fillColor: col, fillOpacity: .18
+                }).bindPopup(popupHtml(f.properties)).addTo(parcelLayer);
+            });
+        }
+
+        // ---- Points chauds (heatmap pondérée) ----
+        function buildHeat() {
+            if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; }
+            const mode = document.getElementById('heat-poids').value;
+            let maxVal = 1;
+            if (mode !== 'uniforme') {
+                VISIBLE.forEach(function (f) {
+                    const v = Number(f.properties[mode]) || 0;
+                    if (v > maxVal) maxVal = v;
+                });
+            }
+            const points = VISIBLE.map(function (f) {
+                const c = f.geometry.coordinates; // [lon, lat]
+                let w = 0.5;
+                if (mode !== 'uniforme') { w = (Number(f.properties[mode]) || 0) / maxVal; }
+                return [c[1], c[0], Math.max(w, 0.05)];
+            });
+            heatLayer = L.heatLayer(points, {
+                radius: 28, blur: 20, maxZoom: 12,
+                gradient: { 0.2: '#2563eb', 0.4: '#16a34a', 0.6: '#eab308', 0.8: '#f59e0b', 1.0: '#dc2626' }
+            });
+            if (document.getElementById('toggle-heat').checked) { heatLayer.addTo(map); }
+        }
+
+        // ---- Rafraîcchit toutes les surcouches selon l'état des cases ----
+        function refreshLayers() {
+            if (document.getElementById('toggle-parcelles').checked) { map.addLayer(parcelLayer); }
+            else { map.removeLayer(parcelLayer); }
+            buildHeat();
+        }
+
         // ---- Chargement des données ----
         fetch(GEOJSON_URL).then(function (r) { return r.json(); }).then(function (data) {
             FEATURES = data.features || [];
             VISIBLE = FEATURES.slice();
             peuplerFiltres();
             buildMarkers();
+            buildParcels();
             map.addLayer(clusterLayer);
+            map.addLayer(parcelLayer);
+            buildHeat();
             renderSearch(VISIBLE);
             renderSynthese(VISIBLE);
             majCompteur();
@@ -219,9 +285,11 @@
                 return true;
             });
             buildMarkers();
+            buildParcels();
             // réaffiche la couche active (cluster ou points simples)
             if (document.getElementById('toggle-cluster').checked) { map.removeLayer(plainLayer); map.addLayer(clusterLayer); }
             else { map.removeLayer(clusterLayer); map.addLayer(plainLayer); }
+            refreshLayers();
             // réapplique la recherche courante sur l'ensemble filtré
             filtrerRecherche();
             renderSynthese(VISIBLE);
@@ -249,6 +317,18 @@
             if (e.target.checked) { map.removeLayer(plainLayer); map.addLayer(clusterLayer); }
             else { map.removeLayer(clusterLayer); map.addLayer(plainLayer); }
         });
+
+        // ---- Bascule parcelles ----
+        document.getElementById('toggle-parcelles').addEventListener('change', function (e) {
+            if (e.target.checked) { map.addLayer(parcelLayer); } else { map.removeLayer(parcelLayer); }
+        });
+
+        // ---- Bascule heatmap + changement de pondération ----
+        document.getElementById('toggle-heat').addEventListener('change', function (e) {
+            if (!heatLayer) { buildHeat(); }
+            if (e.target.checked) { heatLayer.addTo(map); } else { map.removeLayer(heatLayer); }
+        });
+        document.getElementById('heat-poids').addEventListener('change', function () { buildHeat(); });
 
         // ---- Recherche ----
         const searchInput = document.getElementById('search-input');

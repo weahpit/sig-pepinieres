@@ -91,6 +91,7 @@ class CartographieController extends AbstractController
                     'nbLots'        => $nbLots,
                     'plantsLeves'   => $plantsLeves,
                     'etatSanitaire' => $etatSanitaire,
+                    'contour'       => $p->getContourGeojson(),
                     'urlFiche'      => $this->generateUrl('pepiniere_show_web', ['id' => $p->getId()]),
                 ],
             ];

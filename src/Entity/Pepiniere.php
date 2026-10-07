@@ -46,6 +46,15 @@ class Pepiniere
     #[ORM\Column(name: 'superficie_m2', type: 'decimal', precision: 12, scale: 2, nullable: true)]
     private ?string $superficieM2 = null;
 
+    /**
+     * Contour (parcelle) de la pépinière : liste ordonnée de points [longitude, latitude]
+     * issue de la « Délimitation de la surface » saisie dans Kobo. null si non tracée.
+     *
+     * @var array<int, array{0: float, 1: float}>|null
+     */
+    #[ORM\Column(name: 'contour_geojson', type: 'json', nullable: true)]
+    private ?array $contourGeojson = null;
+
     #[ORM\ManyToOne(targetEntity: Agent::class, inversedBy: 'pepinieres')]
     #[ORM\JoinColumn(name: 'id_responsable', referencedColumnName: 'id', nullable: true)]
     private ?Agent $responsable = null;
@@ -110,6 +119,9 @@ class Pepiniere
 
     public function getSuperficieM2(): ?string { return $this->superficieM2; }
     public function setSuperficieM2(?string $v): static { $this->superficieM2 = $v; return $this; }
+
+    public function getContourGeojson(): ?array { return $this->contourGeojson; }
+    public function setContourGeojson(?array $v): static { $this->contourGeojson = $v; return $this; }
 
     public function getResponsable(): ?Agent { return $this->responsable; }
     public function setResponsable(?Agent $v): static { $this->responsable = $v; return $this; }
