@@ -46,4 +46,85 @@
         </table>
     </div>
 </div>
+
+{# -------- Photos de la pépinière -------- #}
+<h2 class="h5 text-forest mt-4"><i class="bi bi-images"></i> Photos ({{ pepiniere.photos|length }})</h2>
+
+<div class="card shadow-sm mb-3"><div class="card-body">
+    <form action="{{ path('pepiniere_photo_add', {id: pepiniere.id}) }}" method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
+        <input type="hidden" name="_token" value="{{ csrf_token('photo_add' ~ pepiniere.id) }}">
+        <div class="col-md-5">
+            <label class="form-label small text-muted mb-1">Image (JPEG, PNG, WebP, GIF · 5 Mo max)</label>
+            <input type="file" name="photo" accept="image/*" class="form-control" required>
+        </div>
+        <div class="col-md-5">
+            <label class="form-label small text-muted mb-1">Légende (facultative)</label>
+            <input type="text" name="legende" maxlength="255" class="form-control" placeholder="Ex. Vue générale, planches de semis…">
+        </div>
+        <div class="col-md-2 d-grid">
+            <button type="submit" class="btn btn-success"><i class="bi bi-upload"></i> Ajouter</button>
+        </div>
+    </form>
+</div></div>
+
+{% if pepiniere.photos|length %}
+<div class="row g-3 mb-4">
+    {% for photo in pepiniere.photos %}
+    <div class="col-6 col-md-4 col-lg-3">
+        <div class="card shadow-sm h-100">
+            <a href="{{ asset(photo.urlPhoto|trim('/')) }}" data-bs-toggle="modal" data-bs-target="#photoModal"
+               data-img="{{ asset(photo.urlPhoto|trim('/')) }}" data-legende="{{ photo.legende }}">
+                <img src="{{ asset(photo.urlPhoto|trim('/')) }}" alt="{{ photo.legende ?? 'Photo pépinière' }}"
+                     class="card-img-top" style="height:160px;object-fit:cover;border-top-left-radius:.5rem;border-top-right-radius:.5rem">
+            </a>
+            <div class="card-body p-2">
+                <div class="small text-truncate" title="{{ photo.legende }}">{{ photo.legende ?? '—' }}</div>
+                <div class="d-flex justify-content-between align-items-center mt-1">
+                    <span class="text-muted" style="font-size:.72rem">{{ photo.datePrise ? photo.datePrise|date('d/m/Y') : '' }}</span>
+                    <form action="{{ path('pepiniere_photo_delete', {id: pepiniere.id, photoId: photo.id}) }}" method="post"
+                          onsubmit="return confirm('Supprimer cette photo ?');" class="m-0">
+                        <input type="hidden" name="_token" value="{{ csrf_token('photo_delete' ~ photo.id) }}">
+                        <button class="btn btn-sm btn-outline-danger border-0 p-1" title="Supprimer"><i class="bi bi-trash"></i></button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{# Modale d'affichage plein format #}
+<div class="modal fade" id="photoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="photoModalLabel">Photo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="photoModalImg" src="" alt="" class="img-fluid rounded">
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<p class="text-muted">Aucune photo pour le moment.</p>
+{% endif %}
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var modal = document.getElementById('photoModal');
+            if (!modal) { return; }
+            modal.addEventListener('show.bs.modal', function (event) {
+                var trigger = event.relatedTarget;
+                var img = trigger.getAttribute('data-img');
+                var legende = trigger.getAttribute('data-legende') || 'Photo';
+                modal.querySelector('#photoModalImg').src = img;
+                modal.querySelector('#photoModalLabel').textContent = legende;
+            });
+        });
+    </script>
 {% endblock %}

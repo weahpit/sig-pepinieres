@@ -23,6 +23,13 @@ class PhotoGeoreferencee
     #[ORM\JoinColumn(name: 'id_lot', referencedColumnName: 'id', nullable: true, onDelete: 'CASCADE')]
     private ?Lot $lot = null;
 
+    #[ORM\ManyToOne(targetEntity: Pepiniere::class, inversedBy: 'photos')]
+    #[ORM\JoinColumn(name: 'id_pepiniere', referencedColumnName: 'id', nullable: true, onDelete: 'CASCADE')]
+    private ?Pepiniere $pepiniere = null;
+
+    #[ORM\Column(name: 'legende', length: 255, nullable: true)]
+    private ?string $legende = null;
+
     #[ORM\Column(name: 'url_photo', type: 'text')]
     #[Assert\NotBlank]
     private ?string $urlPhoto = null;
@@ -52,6 +59,12 @@ class PhotoGeoreferencee
 
     public function getLot(): ?Lot { return $this->lot; }
     public function setLot(?Lot $v): static { $this->lot = $v; return $this; }
+
+    public function getPepiniere(): ?Pepiniere { return $this->pepiniere; }
+    public function setPepiniere(?Pepiniere $v): static { $this->pepiniere = $v; return $this; }
+
+    public function getLegende(): ?string { return $this->legende; }
+    public function setLegende(?string $v): static { $this->legende = $v; return $this; }
 
     public function getUrlPhoto(): ?string { return $this->urlPhoto; }
     public function setUrlPhoto(string $v): static { $this->urlPhoto = $v; return $this; }

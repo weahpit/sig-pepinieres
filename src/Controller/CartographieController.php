@@ -69,6 +69,15 @@ class CartographieController extends AbstractController
                 }
             }
 
+            // Photos de la pépinière (ajout manuel) pour affichage dans la popup
+            $photos = [];
+            foreach ($p->getPhotos() as $ph) {
+                $photos[] = [
+                    'url'     => $ph->getUrlPhoto(),
+                    'legende' => $ph->getLegende(),
+                ];
+            }
+
             $features[] = [
                 'type' => 'Feature',
                 'geometry' => [
@@ -92,6 +101,7 @@ class CartographieController extends AbstractController
                     'plantsLeves'   => $plantsLeves,
                     'etatSanitaire' => $etatSanitaire,
                     'contour'       => $p->getContourGeojson(),
+                    'photos'        => $photos,
                     'urlFiche'      => $this->generateUrl('pepiniere_show_web', ['id' => $p->getId()]),
                 ],
             ];

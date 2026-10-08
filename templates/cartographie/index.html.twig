@@ -208,7 +208,24 @@
                 + '<div><b>Capacité/an :</b> ' + fmt(p.capaciteAn) + '</div>'
                 + '<div><b>Lots :</b> ' + fmt(p.nbLots) + ' — <b>Plants levés :</b> ' + fmt(p.plantsLeves) + '</div>'
                 + '<div><b>État sanitaire :</b> <span style="color:' + couleurEtat(p.etatSanitaire) + ';font-weight:600">' + (p.etatSanitaire || 'Non renseigné') + '</span></div>'
+                + photosHtml(p.photos)
                 + '<div class="mt-1"><a href="' + p.urlFiche + '">Ouvrir la fiche &raquo;</a></div>';
+        }
+
+        // Vignettes des photos dans la popup (cliquables -> visionneuse)
+        function photosHtml(photos) {
+            if (!photos || !photos.length) { return ''; }
+            let html = '<div style="margin-top:6px"><b>Photos (' + photos.length + ') :</b></div>'
+                     + '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;max-width:230px">';
+            photos.slice(0, 6).forEach(function (ph) {
+                const leg = (ph.legende || '').replace(/"/g, '&quot;');
+                html += '<img src="' + ph.url + '" class="map-photo-thumb" '
+                     + 'data-img="' + ph.url + '" data-legende="' + leg + '" '
+                     + 'style="width:60px;height:60px;object-fit:cover;border-radius:6px;cursor:pointer;'
+                     + 'border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.25)" alt="' + leg + '">';
+            });
+            html += '</div>';
+            return html;
         }
 
         function buildMarkers() {
@@ -588,6 +605,29 @@
                 + '<th>Superficie (m²)</th><th>Capacité/an</th><th>Lots</th></tr></thead><tbody>'
                 + rows + '</tbody></table>';
             window.print();
+        });
+
+        // ---- Visionneuse de photos (clic sur une vignette dans une popup) ----
+        const photoOverlay = document.createElement('div');
+        photoOverlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:3000;'
+            + 'display:none;align-items:center;justify-content:center;flex-direction:column;padding:24px;cursor:zoom-out';
+        photoOverlay.innerHTML = '<img style="max-width:92vw;max-height:82vh;border-radius:10px;'
+            + 'box-shadow:0 10px 40px rgba(0,0,0,.6)" alt="">'
+            + '<div style="color:#fff;margin-top:12px;font-size:.95rem;text-align:center;max-width:80vw"></div>';
+        document.body.appendChild(photoOverlay);
+        const photoOverlayImg = photoOverlay.querySelector('img');
+        const photoOverlayCap = photoOverlay.querySelector('div');
+        photoOverlay.addEventListener('click', function () { photoOverlay.style.display = 'none'; });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') { photoOverlay.style.display = 'none'; }
+        });
+        document.addEventListener('click', function (e) {
+            const t = e.target;
+            if (t && t.classList && t.classList.contains('map-photo-thumb')) {
+                photoOverlayImg.src = t.getAttribute('data-img');
+                photoOverlayCap.textContent = t.getAttribute('data-legende') || '';
+                photoOverlay.style.display = 'flex';
+            }
         });
     })();
     </script>

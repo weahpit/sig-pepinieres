@@ -83,11 +83,17 @@ class Pepiniere
     #[ORM\OneToMany(mappedBy: 'pepiniere', targetEntity: Depense::class, orphanRemoval: true)]
     private Collection $depenses;
 
+    /** @var Collection<int, PhotoGeoreferencee> */
+    #[ORM\OneToMany(mappedBy: 'pepiniere', targetEntity: PhotoGeoreferencee::class, orphanRemoval: true, cascade: ['remove'])]
+    #[ORM\OrderBy(['datePrise' => 'DESC'])]
+    private Collection $photos;
+
     public function __construct()
     {
         $this->planches = new ArrayCollection();
         $this->lots = new ArrayCollection();
         $this->depenses = new ArrayCollection();
+        $this->photos = new ArrayCollection();
         $this->dateMaj = new \DateTimeImmutable();
     }
 
@@ -146,6 +152,9 @@ class Pepiniere
 
     /** @return Collection<int, Depense> */
     public function getDepenses(): Collection { return $this->depenses; }
+
+    /** @return Collection<int, PhotoGeoreferencee> */
+    public function getPhotos(): Collection { return $this->photos; }
 
     public function __toString(): string { return (string) $this->nomPepiniere; }
 }
