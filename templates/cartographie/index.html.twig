@@ -168,6 +168,7 @@
         const parcelLayer = L.layerGroup();   // polygones des parcelles
         let heatLayer = null;                 // couche heatmap (leaflet.heat)
         let analyseLayer = L.layerGroup().addTo(map);
+        let regionLayer = L.layerGroup().addTo(map);  // contour + étiquette de la région sélectionnée
         let centreAnalyse = null; // [lat, lon]
 
         function fmt(n) { return (n === null || n === undefined) ? '–' : Number(n).toLocaleString('fr-FR'); }
@@ -294,12 +295,82 @@
             filtrerRecherche();
             renderSynthese(VISIBLE);
             majCompteur();
+            drawRegion(selRegion.value);  // (re)dessine le contour de la région active
         }
         function majCompteur() { document.getElementById('filtre-count').textContent = VISIBLE.length; }
-        selRegion.addEventListener('change', applyFilters);
+
+        // ---- Contour + géoréférencement de la région sélectionnée ----
+        const REGION_COULEUR = '#166534';
+        function drawRegion(regionName) {
+            regionLayer.clearLayers();
+            if (!regionName) return null;
+            // tous les points de la région (indépendamment du filtre état sanitaire)
+            const coords = FEATURES
+                .filter(function (f) { return f.properties.region === regionName; })
+                .map(function (f) { return f.geometry.coordinates; }); // [lon, lat]
+            if (!coords.length) return null;
+
+            let areaLayer = null;
+            try {
+                const fc = turf.featureCollection(coords.map(function (c) { return turf.point(c); }));
+                if (coords.length >= 3) {
+                    let hull = turf.convex(fc);
+                    if (hull) {
+                        hull = turf.buffer(hull, 2, { units: 'kilometers' }); // marge pour englober les bords
+                        areaLayer = L.geoJSON(hull, { style: regionStyle() });
+                    }
+                }
+                if (!areaLayer) {
+                    // 1 ou 2 points : zone tampon autour
+                    const buffered = turf.buffer(fc, 4, { units: 'kilometers' });
+                    areaLayer = L.geoJSON(buffered, { style: regionStyle() });
+                }
+            } catch (err) { areaLayer = null; }
+            if (areaLayer) { areaLayer.addTo(regionLayer); }
+
+            // étiquette géoréférencée au centre de la région
+            try {
+                const ctr = turf.center(turf.featureCollection(
+                    coords.map(function (c) { return turf.point(c); })
+                )).geometry.coordinates; // [lon, lat]
+                L.marker([ctr[1], ctr[0]], {
+                    interactive: false, keyboard: false,
+                    icon: L.divIcon({
+                        className: '',
+                        html: '<div style="background:' + REGION_COULEUR + ';color:#fff;padding:2px 9px;'
+                            + 'border-radius:12px;font-size:12px;font-weight:600;white-space:nowrap;'
+                            + 'box-shadow:0 2px 6px rgba(0,0,0,.3)">' + regionName + '</div>',
+                        iconSize: [0, 0], iconAnchor: [0, 8]
+                    })
+                }).addTo(regionLayer);
+            } catch (err) { /* ignore */ }
+
+            return areaLayer;
+        }
+        function regionStyle() {
+            return { color: REGION_COULEUR, weight: 2.5, opacity: .9, dashArray: '6 4',
+                     fillColor: REGION_COULEUR, fillOpacity: .07 };
+        }
+        function zoomRegion(regionName) {
+            const layer = drawRegion(regionName);
+            if (layer) {
+                try { map.fitBounds(layer.getBounds().pad(0.12)); return; } catch (e) { /* fallback */ }
+            }
+            const pts = FEATURES
+                .filter(function (f) { return f.properties.region === regionName; })
+                .map(function (f) { return [f.geometry.coordinates[1], f.geometry.coordinates[0]]; });
+            if (pts.length) { map.fitBounds(L.latLngBounds(pts).pad(0.3)); }
+        }
+
+        selRegion.addEventListener('change', function () {
+            applyFilters();
+            if (selRegion.value) { zoomRegion(selRegion.value); }
+            else { regionLayer.clearLayers(); fitAll(); }
+        });
         selEtat.addEventListener('change', applyFilters);
         document.getElementById('btn-reset-filtre').addEventListener('click', function () {
             selRegion.value = ''; selEtat.value = ''; searchInput.value = ''; applyFilters();
+            regionLayer.clearLayers(); fitAll();
         });
 
         function fitAll() {
