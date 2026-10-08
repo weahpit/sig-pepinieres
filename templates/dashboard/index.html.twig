@@ -2,67 +2,184 @@
 
 {% block title %}Tableau de bord{% endblock %}
 
+{% block stylesheets %}
+    {{ parent() }}
+    <style>
+        .chart-card { border:0; border-radius:14px; box-shadow:0 4px 18px rgba(20,49,27,.08); }
+        .chart-card .card-header { background:transparent; border-bottom:1px solid var(--forest-100);
+            font-weight:700; color:var(--forest-800); }
+        .chart-box { position:relative; height:260px; }
+        .chart-box-sm { position:relative; height:220px; }
+        .alert-tile { border:0; border-radius:14px; color:#fff; overflow:hidden; position:relative;
+            box-shadow:0 4px 16px rgba(0,0,0,.12); transition:transform .15s ease; }
+        .alert-tile:hover { transform:translateY(-3px); }
+        .alert-tile .ico { position:absolute; right:-6px; top:-10px; font-size:4.2rem; opacity:.18; }
+        .alert-tile .val { font-size:2rem; font-weight:800; line-height:1; }
+        .alert-tile .lbl { font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; opacity:.95; }
+        .at-danger  { background:linear-gradient(135deg,#b91c1c,#ef4444); }
+        .at-warning { background:linear-gradient(135deg,#b45309,#f59e0b); }
+        .at-info    { background:linear-gradient(135deg,#1b5e20,#43a047); }
+        .at-muted   { background:linear-gradient(135deg,#4b5563,#6b7280); }
+        .alert-list .list-group-item { border-color:var(--forest-100); }
+        .badge-soft-danger { background:#fee2e2; color:#b91c1c; }
+        .badge-soft-warning{ background:#fef3c7; color:#b45309; }
+    </style>
+{% endblock %}
+
 {% block body %}
 <h1 class="h3 mb-4 text-forest"><i class="bi bi-speedometer2"></i> Tableau de bord</h1>
 
+{# -------- Indicateurs d'alertes -------- #}
 <div class="row g-3 mb-4">
-    <div class="col-md-3">
-        <div class="card card-metric shadow-sm">
-            <div class="card-body">
-                <div class="text-muted small">Pépinières</div>
-                <div class="h4 mb-0">{{ nbPepinieres }}</div>
-            </div>
+    <div class="col-md-3 col-6">
+        <div class="card alert-tile at-danger h-100"><div class="card-body">
+            <i class="bi bi-exclamation-octagon-fill ico"></i>
+            <div class="val">{{ lotsCritiques|length }}</div>
+            <div class="lbl">Lots critiques</div>
+            <div class="small mt-1" style="opacity:.9">Mortalité ≥ 30 %</div>
+        </div></div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card alert-tile at-warning h-100"><div class="card-body">
+            <i class="bi bi-exclamation-triangle-fill ico"></i>
+            <div class="val">{{ lotsSurveiller|length }}</div>
+            <div class="lbl">À surveiller</div>
+            <div class="small mt-1" style="opacity:.9">Germination &lt; 50 %</div>
+        </div></div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card alert-tile at-info h-100"><div class="card-body">
+            <i class="bi bi-shield-exclamation ico"></i>
+            <div class="val">{{ nbEtatDegrade }}</div>
+            <div class="lbl">État dégradé</div>
+            <div class="small mt-1" style="opacity:.9">Suivi sanitaire non « Sain »</div>
+        </div></div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card alert-tile at-muted h-100"><div class="card-body">
+            <i class="bi bi-question-circle-fill ico"></i>
+            <div class="val">{{ lotsSansSuivi }}</div>
+            <div class="lbl">Sans suivi</div>
+            <div class="small mt-1" style="opacity:.9">Aucune mesure sanitaire</div>
+        </div></div>
+    </div>
+</div>
+
+{# -------- Cartes métriques -------- #}
+<div class="row g-3 mb-4">
+    <div class="col-md-3 col-6">
+        <div class="card card-metric shadow-sm"><div class="card-body">
+            <div class="text-muted small">Pépinières</div>
+            <div class="h4 mb-0">{{ nbPepinieres }}</div>
+        </div></div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card card-metric shadow-sm"><div class="card-body">
+            <div class="text-muted small">Lots en production</div>
+            <div class="h4 mb-0">{{ nbLots }}</div>
+        </div></div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card card-metric shadow-sm"><div class="card-body">
+            <div class="text-muted small">Plants levés</div>
+            <div class="h4 mb-0">{{ totalLeves }}</div>
+        </div></div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card card-metric shadow-sm"><div class="card-body">
+            <div class="text-muted small">Germination globale</div>
+            <div class="h4 mb-0">{{ tauxGerminationGlobal }} %</div>
+        </div></div>
+    </div>
+</div>
+
+{# -------- Graphiques -------- #}
+<div class="row g-3 mb-4">
+    <div class="col-lg-5">
+        <div class="card chart-card h-100">
+            <div class="card-header"><i class="bi bi-bar-chart-fill text-forest"></i> Flux de plants</div>
+            <div class="card-body"><div class="chart-box"><canvas id="chartFlux"></canvas></div></div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card card-metric shadow-sm">
-            <div class="card-body">
-                <div class="text-muted small">Lots en production</div>
-                <div class="h4 mb-0">{{ nbLots }}</div>
-            </div>
+    <div class="col-lg-3">
+        <div class="card chart-card h-100">
+            <div class="card-header"><i class="bi bi-pie-chart-fill text-forest"></i> Germination</div>
+            <div class="card-body"><div class="chart-box"><canvas id="chartGerm"></canvas></div></div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card card-metric shadow-sm">
-            <div class="card-body">
-                <div class="text-muted small">Plants levés</div>
-                <div class="h4 mb-0">{{ totalLeves }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card card-metric shadow-sm">
-            <div class="card-body">
-                <div class="text-muted small">Taux de germination global</div>
-                <div class="h4 mb-0">{{ tauxGerminationGlobal }} %</div>
-            </div>
+    <div class="col-lg-4">
+        <div class="card chart-card h-100">
+            <div class="card-header"><i class="bi bi-heart-pulse-fill text-forest"></i> État sanitaire</div>
+            <div class="card-body"><div class="chart-box"><canvas id="chartEtat"></canvas></div></div>
         </div>
     </div>
 </div>
 
 <div class="row g-3 mb-4">
-    <div class="col-md-4">
-        <div class="card shadow-sm"><div class="card-body">
-            <div class="text-muted small">Graines semées</div>
-            <div class="h5 mb-0">{{ totalGraines }}</div>
-        </div></div>
+    <div class="col-lg-7">
+        <div class="card chart-card h-100">
+            <div class="card-header"><i class="bi bi-tree-fill text-forest"></i> Top espèces · plants levés</div>
+            <div class="card-body"><div class="chart-box-sm"><canvas id="chartEspeces"></canvas></div></div>
+        </div>
     </div>
-    <div class="col-md-4">
-        <div class="card shadow-sm"><div class="card-body">
-            <div class="text-muted small">Plants perdus</div>
-            <div class="h5 mb-0 text-danger">{{ totalPerdus }}</div>
-        </div></div>
-    </div>
-    <div class="col-md-4">
-        <div class="card shadow-sm"><div class="card-body">
-            <div class="text-muted small">Plants distribués</div>
-            <div class="h5 mb-0">{{ totalDistribues }}</div>
-        </div></div>
+    <div class="col-lg-5">
+        <div class="card chart-card h-100">
+            <div class="card-header"><i class="bi bi-clipboard-data-fill text-forest"></i> Bilan production</div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between py-2 border-bottom">
+                    <span class="text-muted">Graines semées</span><b>{{ totalGraines }}</b></div>
+                <div class="d-flex justify-content-between py-2 border-bottom">
+                    <span class="text-muted">Plants levés</span><b class="text-forest">{{ totalLeves }}</b></div>
+                <div class="d-flex justify-content-between py-2 border-bottom">
+                    <span class="text-muted">Plants perdus</span><b class="text-danger">{{ totalPerdus }}</b></div>
+                <div class="d-flex justify-content-between py-2">
+                    <span class="text-muted">Plants distribués</span><b>{{ totalDistribues }}</b></div>
+            </div>
+        </div>
     </div>
 </div>
 
-<div class="card shadow-sm">
-    <div class="card-header bg-white fw-bold">Indicateurs par lot</div>
+{# -------- Listes d'alertes détaillées -------- #}
+{% if lotsCritiques is not empty or lotsSurveiller is not empty %}
+<div class="row g-3 mb-4">
+    {% if lotsCritiques is not empty %}
+    <div class="col-lg-6">
+        <div class="card chart-card h-100 alert-list">
+            <div class="card-header text-danger"><i class="bi bi-exclamation-octagon-fill"></i> Lots critiques (mortalité ≥ 30 %)</div>
+            <ul class="list-group list-group-flush">
+            {% for row in lotsCritiques|slice(0, 8) %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span><b>{{ row.lot.numeroLot }}</b>
+                        <span class="text-muted small">· {{ row.lot.espece ? row.lot.espece.nomCommun : '—' }}</span></span>
+                    <span class="badge badge-soft-danger rounded-pill">{{ row.valeur }} %</span>
+                </li>
+            {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+    {% if lotsSurveiller is not empty %}
+    <div class="col-lg-6">
+        <div class="card chart-card h-100 alert-list">
+            <div class="card-header" style="color:#b45309"><i class="bi bi-exclamation-triangle-fill"></i> À surveiller (germination &lt; 50 %)</div>
+            <ul class="list-group list-group-flush">
+            {% for row in lotsSurveiller|slice(0, 8) %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span><b>{{ row.lot.numeroLot }}</b>
+                        <span class="text-muted small">· {{ row.lot.espece ? row.lot.espece.nomCommun : '—' }}</span></span>
+                    <span class="badge badge-soft-warning rounded-pill">{{ row.valeur }} %</span>
+                </li>
+            {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+{# -------- Tableau indicateurs par lot -------- #}
+<div class="card chart-card">
+    <div class="card-header">Indicateurs par lot</div>
     <div class="table-responsive">
         <table class="table table-hover mb-0 align-middle">
             <thead class="table-light">
@@ -88,4 +205,128 @@
         </table>
     </div>
 </div>
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script>
+    (function () {
+        'use strict';
+        if (typeof Chart === 'undefined') { return; }
+
+        const DATA = {
+            flux:   [{{ totalGraines }}, {{ totalLeves }}, {{ totalPerdus }}, {{ totalDistribues }}],
+            germ:   {{ tauxGerminationGlobal }},
+            etat:   {{ etatCounts|json_encode|raw }},
+            especes:{{ topEspeces|json_encode|raw }}
+        };
+
+        const FOREST = '#2e7d32', FOREST_L = '#66bb6a', GOLD = '#c0a04c',
+              DANGER = '#dc2626', MUTED = '#9ca3af';
+        Chart.defaults.font.family = "system-ui, -apple-system, 'Segoe UI', sans-serif";
+        Chart.defaults.color = '#4b5563';
+
+        // 1) Flux de plants (barres)
+        new Chart(document.getElementById('chartFlux'), {
+            type: 'bar',
+            data: {
+                labels: ['Graines semées', 'Plants levés', 'Plants perdus', 'Distribués'],
+                datasets: [{
+                    data: DATA.flux,
+                    backgroundColor: [GOLD, FOREST, DANGER, FOREST_L],
+                    borderRadius: 8, maxBarThickness: 54
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, grid: { color: '#eef2ee' } }, x: { grid: { display: false } } }
+            }
+        });
+
+        // 2) Germination globale (anneau type jauge)
+        const g = Math.max(0, Math.min(100, DATA.germ));
+        new Chart(document.getElementById('chartGerm'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Germées', 'Non germées'],
+                datasets: [{ data: [g, 100 - g], backgroundColor: [FOREST, '#e8f0e8'], borderWidth: 0 }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, cutout: '72%',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: function (c) { return c.parsed.toFixed(1) + ' %'; } } }
+                }
+            },
+            plugins: [{
+                id: 'centerText',
+                afterDraw: function (chart) {
+                    const { ctx, chartArea } = chart;
+                    const x = (chartArea.left + chartArea.right) / 2;
+                    const y = (chartArea.top + chartArea.bottom) / 2;
+                    ctx.save();
+                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillStyle = FOREST; ctx.font = '700 1.6rem system-ui';
+                    ctx.fillText(g.toFixed(1) + '%', x, y - 6);
+                    ctx.fillStyle = '#6b7280'; ctx.font = '0.72rem system-ui';
+                    ctx.fillText('germination', x, y + 16);
+                    ctx.restore();
+                }
+            }]
+        });
+
+        // 3) Répartition état sanitaire (anneau)
+        const ETAT_COLORS = {
+            'Sain': '#16a34a', 'Bon': '#16a34a', 'Bonne': '#16a34a',
+            'Faible': '#eab308', 'Moyen': '#eab308', 'Attaque': '#f59e0b',
+            'Malade': '#dc2626', 'Mauvais': '#dc2626', 'Mort': '#6b7280'
+        };
+        const etatLabels = Object.keys(DATA.etat);
+        const etatBox = document.getElementById('chartEtat');
+        if (etatLabels.length) {
+            new Chart(etatBox, {
+                type: 'doughnut',
+                data: {
+                    labels: etatLabels,
+                    datasets: [{
+                        data: etatLabels.map(function (k) { return DATA.etat[k]; }),
+                        backgroundColor: etatLabels.map(function (k) { return ETAT_COLORS[k] || MUTED; }),
+                        borderWidth: 2, borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, cutout: '58%',
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 10 } } }
+                }
+            });
+        } else {
+            etatBox.parentElement.innerHTML = '<div class="text-muted small text-center py-5">Aucun suivi sanitaire renseigné.</div>';
+        }
+
+        // 4) Top espèces (barres horizontales)
+        const espLabels = Object.keys(DATA.especes);
+        const espBox = document.getElementById('chartEspeces');
+        if (espLabels.length) {
+            new Chart(espBox, {
+                type: 'bar',
+                data: {
+                    labels: espLabels,
+                    datasets: [{
+                        data: espLabels.map(function (k) { return DATA.especes[k]; }),
+                        backgroundColor: FOREST_L, borderRadius: 6, maxBarThickness: 26
+                    }]
+                },
+                options: {
+                    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true, grid: { color: '#eef2ee' } }, y: { grid: { display: false } } }
+                }
+            });
+        } else {
+            espBox.parentElement.innerHTML = '<div class="text-muted small text-center py-5">Aucune donnée d’espèce.</div>';
+        }
+    })();
+    </script>
 {% endblock %}
